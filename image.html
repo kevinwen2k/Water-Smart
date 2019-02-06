@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<link rel="stylesheet" href="http://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+<head>
+	<style>
+		.show {
+			display: block;
+		}
+		.hide {
+			display: none;
+		}
+		.half {
+			height: 10%;
+			width: 10%;
+		}
+		.full_lightbox {
+			width: 80%;
+		}
+		#lightbox{
+			position:fixed;
+			width:100%;
+			height:100%;
+			top:0px;
+			left:0px;
+			background:rgba(0, 0, 0, 0.3);
+			display:none;
+		}
+		#lightbox.open{
+			display:block;
+		}
+		#lightbox.close{
+			display:none;
+		}
+		#lightbox_content{
+			position:relative;
+			width:400px;
+			height:600px;
+			background:#ffffff;
+			border-radius:3px;
+			left:50%;
+			top:50%;
+			margin-left:-300px;
+			margin-top:-250px;
+			text-align:center;
+		}
+	</style>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+	<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+	<script>
+        var url = "http://cats.watersmart.s3.amazonaws.com";
+        var itemList = [];
+
+        var currentIndex = 0;
+        function showPrevious() {
+            showSlide(currentIndex - 1);
+        }
+        function showNext() {
+            showSlide(currentIndex + 1);
+        }
+        function showSlide(index) {
+            if (index < 0) {
+                index = 0;
+            }
+
+            if (index >= itemList.length) {
+                index = itemList.length - 1;
+            }
+            var item = itemList[index];
+            currentIndex = index;
+            $("#big_image img").text(item.img);
+            $("#big_image img").attr("src", url + "/" + item.img);
+            console.log("currentIndex:" + currentIndex + ", img:" + item.img);
+        }
+
+        $(document).ready(function(){
+            var ascending = true;
+            var $imagesWrap = $("#images");
+            var $allImages;
+            var sortByName;
+            var doSortName;
+            var sortByTime;
+            var doSortTime;
+
+
+            $.get( url, function( data ) {
+                if(data){
+                    $(data).find("Contents").each(function (index, value) {
+                        try{
+                            var $key = $(value).find("Key");
+                            var $size = $(value).find("Size");
+                            var $modified = $(value).find("LastModified");
+                            var img = $key.text();
+                            var altText = img.substring(0, img.lastIndexOf("."));
+                            var size = $size.text();
+
+                            var modified = $modified.text();
+                            var item = {
+                                key: $key,
+								size: $size,
+								modified: $modified,
+								img: img,
+								alt: altText,
+							};
+							itemList[index] = item;
+                            $("#images").append('<div class="img_block" data-name="' + altText + '" data-time="' + modified + '"><img src="' + url + '/' + img + '" alt="' + altText + '" data-img_id="' + index + '"  class="lightbox_trigger half" /><span>' + img + '</span> (<span>' + modified + '</span>)</div>');
+                            // console.log("Image URL: " , img, " | Size: ", size);
+                        }catch(e){
+                            console.log("Cannot find image source");
+                        }
+                    });
+                }else{
+                    console.log("Failed to load data");
+                }
+
+                ascending = true;
+                $allImages = $(".img_block");
+                sortByName = Array.prototype.sort.bind($allImages);
+                sortByTime = Array.prototype.sort.bind($allImages);
+
+                doSortName = function (ascending) {
+                    sortByName(function ( a, b ) {
+
+                        var aText = $(a).data("name");
+                        var bText = $(b).data("name");
+
+                        if ( aText < bText ) {
+                            return ascending ? -1 : 1;
+                        }
+
+                        if ( aText > bText ) {
+                            return ascending ? 1 : -1;
+                        }
+
+                        return 0;
+                    });
+
+                    $imagesWrap.append($allImages);
+                };
+
+				doSortTime = function (ascending) {
+					sortByTime(function ( a, b ) {
+
+						var aText = $(a).data("time");
+						var bText = $(b).data("time");
+
+						if ( aText < bText ) {
+							return ascending ? -1 : 1;
+						}
+
+						if ( aText > bText ) {
+							return ascending ? 1 : -1;
+						}
+
+						return 0;
+					});
+
+					$imagesWrap.append($allImages);
+				};
+
+
+			});
+
+            $( "#search_box" ).keyup(function(event) {
+				var word = $(this).val();
+                console.log("word: " + word);
+                $('.img_block').each(function (index) {
+                    $this = $(this);
+                    if ($this.data("name").toLowerCase().indexOf(word.toLowerCase()) >= 0) {
+                        // console.log($this.data("name"));
+                        $this.removeClass("hide");
+                        $this.addClass("show");
+					} else {
+                        $this.removeClass("show");
+                        $this.addClass("hide");
+					}
+
+                })
+            });
+
+            $("#sort_by_name").on('click', function () {
+                doSortName(ascending);
+                ascending = !ascending;
+            });
+
+            $("#sort_by_time").on('click', function () {
+                doSortTime(ascending);
+                ascending = !ascending;
+            });
+
+            var $ele_details;
+            $('body').on('click', "img.lightbox_trigger", function (e) {
+                e.preventDefault();
+                var image_src = $(this).attr("src");
+                currentIndex = $(this).data("img_id");
+				console.log("currentIndex:" + currentIndex);
+                if ($('#lightbox').length > 0) {
+                    $('#lightbox_content').html('' +
+						'<div><a href="#" id="close_lightbox">Close</a></div>' +
+						'<div id="big_image"><a href="#" onclick="showPrevious()" id="prev">prev</a> <img src="' + image_src + '" class="full_lightbox" /> <a href="#" onclick="showNext()" id="next"> next</a></div>' +
+                        '<div id="image_name">' + image_src.split('/').reverse()[0] + '</div>'
+					);
+                } else {
+                    var lightbox =
+                        '<div id="lightbox">' +
+                        '<div id="lightbox_content">' +
+                        '<div><a href="#" id="close_lightbox">Close</a></div>' +
+                        '<div id="big_image"><a href="#" onclick="showPrevious()" id="prev">prev</a> <img src="' + image_src +'" class="full_lightbox" /> <a href="#" onclick="showNext()" id="next"> next</a></div>' +
+						'<div id="image_name">' + image_src.split('/').reverse()[0] + '</div>' +
+                        '</div>' +
+                        '</div>';
+                    $('body').append(lightbox);
+				}
+
+                $('#lightbox').show();
+                $('#lightbox_content').resizable();
+            });
+
+            $('body').on('click', '#close_lightbox', function (e) {
+				e.preventDefault();
+                $('#lightbox_content').resizable("destroy");
+				$('#lightbox').hide();
+            })
+
+            window.onclick = function(event) {
+                if (event.target.id == 'lightbox') {
+                    $('#lightbox_content').resizable("destroy");
+                    $('#lightbox').hide();
+                }
+            }
+
+        });
+	</script>
+</head>
+<body>
+<div id="search">Search: <input type="text" name="search" id="search_box" value="" /></div><br />
+<div><span><a href="#" id="sort_by_name">Sort By Name</a> <a href="#" id="sort_by_time">Sort By Date</a></span></div><br />
+<div id="images">
+</div>
+
+</body>
+</html>
